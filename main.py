@@ -2,6 +2,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI
 import os
 import torch
+import torch.nn as nn
 from torchvision import datasets, transforms, utils
 import random
 
@@ -11,6 +12,24 @@ testData = datasets.MNIST(root="./data", train=False, download=True, transform=t
 
 app = FastAPI()
 
+# Define model architecture to match the saved weights
+model = nn.Sequential(
+    nn.Flatten(),
+    nn.Linear(784, 128),
+    nn.ReLU(),
+    nn.Linear(128, 64),
+    nn.ReLU(),
+    nn.Linear(64, 10)
+)
+
+# Load weights if available
+model_path = "model.pth"
+
+model.load_state_dict(torch.load(model_path, map_location='cpu'))
+
+
+model.eval()
+
 
 @app.get("/image")
 def get_image():
@@ -18,8 +37,17 @@ def get_image():
     image, label = testData[index]
     pixels = image.squeeze().tolist()
     #utils.save_image(image, "static/image.png")
-    return {"label": label, "image": pixels}
+    return {"label": label, "image": pixels, "index": index}
     
+@app.get("/predict")
+def predict(index: int):
+    image, label = testData[index]
+    # image is a tensor shaped [1, 28, 28]; add batch dim and run through model
+    with torch.no_grad():
+        logits = model(image.unsqueeze(0))
+        prediction = int(logits.argmax(dim=1).item())
+
+    return {"prediction": prediction, "label": int(label)}
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
