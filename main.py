@@ -7,7 +7,7 @@ from torchvision import datasets, transforms, utils
 import random
 
 transform = transforms.ToTensor()
-testData = datasets.MNIST(root="./data", train=False, download=True, transform=transform)
+testData = datasets.FashionMNIST(root="./data", train=False, download=True, transform=transform)
 
 
 app = FastAPI()
@@ -22,8 +22,22 @@ model = nn.Sequential(
     nn.Linear(64, 10)
 )
 
+fashion_mnist_labels = {
+    0: "T-shirt/top",
+    1: "Trouser",
+    2: "Pullover",
+    3: "Dress",
+    4: "Coat",
+    5: "Sandal",
+    6: "Shirt",
+    7: "Sneaker",
+    8: "Bag",
+    9: "Ankle boot"
+}
+
+
 # Load weights if available
-model_path = "model.pth"
+model_path = "fashionModel.pth"
 
 model.load_state_dict(torch.load(model_path, map_location='cpu'))
 
@@ -37,7 +51,7 @@ def get_image():
     image, label = testData[index]
     pixels = image.squeeze().tolist()
     #utils.save_image(image, "static/image.png")
-    return {"label": label, "image": pixels, "index": index}
+    return {"label": fashion_mnist_labels[int(label)], "image": pixels, "index": index}
     
 @app.get("/predict")
 def predict(index: int):
@@ -47,7 +61,7 @@ def predict(index: int):
         logits = model(image.unsqueeze(0))
         prediction = int(logits.argmax(dim=1).item())
 
-    return {"prediction": prediction, "label": int(label)}
+    return {"prediction": fashion_mnist_labels[prediction], "label": fashion_mnist_labels[int(label)]}
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
