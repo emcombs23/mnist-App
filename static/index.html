@@ -1,26 +1,36 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width,initial-scale=1" />
-		<title>MNIST Viewer</title>
-		<link rel="stylesheet" href="/style.css" />
-	</head>
-	<body>
-		<main>
-			<h1>MNIST Test Image</h1>
-			<div class="controls">
-				<button id="loadBtn">Load Random Test Image</button>
-				<button id="loopBtn">Generate Until Mismatch</button>
-				<div id="loopStatus" style="display:inline-block;margin-left:8px">Status: —</div>
-				<div id="label">Label: —</div>
-				<div id="prediction">Prediction: —</div>
-			</div>
-			<div class="viewer">
-				<canvas id="mnistCanvas" width="28" height="28"></canvas>
-			</div>
-		</main>
-
-		<script src="/script.js"></script>
-	</body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIFAR-10 Viewer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>CIFAR-10 Viewer</h1>
+    <div class="controls">
+        <button id="run-btn">Run</button>
+        <p id="streak">Correct streak: <span id="streak-count">0</span></p>
+    </div>
+    <div class="stage">
+        <div class="panel" id="image-panel">
+            <h2>Image</h2>
+            <canvas id="canvas" width="32" height="32"></canvas>
+            <p>Label: <span id="label">—</span></p>
+        </div>
+        <div class="panel" id="network-panel">
+            <h2>Network</h2>
+            <svg id="network" viewBox="0 0 200 220">
+                <g id="edges" stroke="#aaa" stroke-width="0.5"></g>
+                <g id="nodes"></g>
+            </svg>
+        </div>
+        <div class="panel" id="prediction-panel">
+            <h2>Prediction</h2>
+            <div id="prediction">—</div>
+            <div id="face"></div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
 </html>

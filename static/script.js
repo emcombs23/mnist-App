@@ -1,111 +1,123 @@
-document.addEventListener('DOMContentLoaded', () => {
-	const btn = document.getElementById('loadBtn');
-	const loopBtn = document.getElementById('loopBtn');
-	const loopStatus = document.getElementById('loopStatus');
-	const canvas = document.getElementById('mnistCanvas');
-	const labelEl = document.getElementById('label');
-	const predEl = document.getElementById('prediction');
-	const ctx = canvas.getContext('2d');
+const runBtn = document.getElementById("run-btn");
+const labelSpan = document.getElementById("label");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const predictionDiv = document.getElementById("prediction");
+const faceDiv = document.getElementById("face");
+const streakCount = document.getElementById("streak-count");
 
-	function renderImage(img, label) {
-		const size = 28;
-		const imageData = ctx.createImageData(size, size);
-		for (let y = 0; y < size; y++) {
-			for (let x = 0; x < size; x++) {
-				const v = Math.round((1 - img[y][x]) * 255);
-				const i = (y * size + x) * 4;
-				imageData.data[i + 0] = v;
-				imageData.data[i + 1] = v;
-				imageData.data[i + 2] = v;
-				imageData.data[i + 3] = 255;
-			}
-		}
-		ctx.putImageData(imageData, 0, 0);
-		labelEl.textContent = `Label: ${label}`;
-	}
+let running = false;
+let streak = 0;
 
-	async function fetchImage() {
-		const res = await fetch('/image');
-		if (!res.ok) throw new Error('Failed to fetch image');
-		return res.json();
-	}
+// Build a simple network diagram: layers of dots with connecting lines.
+const layers = [6, 5, 5, 4];
+const nodesGroup = document.getElementById("nodes");
+const edgesGroup = document.getElementById("edges");
+const svgNS = "http://www.w3.org/2000/svg";
+const layerPositions = [];
 
-	async function fetchPredict(index) {
-		const pRes = await fetch(`/predict?index=${encodeURIComponent(index)}`, { headers: { 'Accept': 'application/json' } });
-		if (!pRes.ok) throw new Error(`Predict request failed (${pRes.status})`);
-		const pData = await pRes.json();
-		return pData.predicted ?? pData.prediction ?? pData.pred ?? null;
-	}
+layers.forEach((count, li) => {
+    const x = 20 + li * 55;
+    const positions = [];
+    const spacing = 180 / (count + 1);
+    for (let i = 0; i < count; i++) {
+        const y = 20 + spacing * (i + 1);
+        positions.push({ x, y });
+        const c = document.createElementNS(svgNS, "circle");
+        c.setAttribute("cx", x);
+        c.setAttribute("cy", y);
+        c.setAttribute("r", 5);
+        c.setAttribute("fill", "#4a90d9");
+        nodesGroup.appendChild(c);
+    }
+    layerPositions.push(positions);
+});
 
-	btn.addEventListener('click', async () => {
-		try {
-			btn.disabled = true;
-			btn.textContent = 'Loading...';
-			predEl.textContent = 'Prediction: —';
+for (let li = 0; li < layerPositions.length - 1; li++) {
+    layerPositions[li].forEach(a => {
+        layerPositions[li + 1].forEach(b => {
+            const line = document.createElementNS(svgNS, "line");
+            line.setAttribute("x1", a.x);
+            line.setAttribute("y1", a.y);
+            line.setAttribute("x2", b.x);
+            line.setAttribute("y2", b.y);
+            edgesGroup.appendChild(line);
+        });
+    });
+}
 
-			const data = await fetchImage();
-			renderImage(data.image, data.label);
+function pulseNetwork() {
+    const circles = nodesGroup.querySelectorAll("circle");
+    circles.forEach((c, i) => {
+        setTimeout(() => {
+            c.setAttribute("fill", "#ffcc00");
+            setTimeout(() => c.setAttribute("fill", "#4a90d9"), 300);
+        }, i * 30);
+    });
+}
 
-			if (typeof data.index === 'number') {
-				try {
-					const predVal = await fetchPredict(data.index);
-					predEl.textContent = `Prediction: ${predVal ?? '(no value)'}`;
-				} catch (err) {
-					console.error('Prediction error', err);
-					predEl.textContent = 'Prediction: (error)';
-				}
-			} else {
-				predEl.textContent = 'Prediction: (no index from server)';
-			}
-		} catch (err) {
-			console.error(err);
-			labelEl.textContent = 'Label: (error)';
-			predEl.textContent = 'Prediction: (error)';
-		} finally {
-			btn.disabled = false;
-			btn.textContent = 'Load Random Test Image';
-		}
-	});
+async function loadAndPredict() {
+    // Load image
+    const imgRes = await fetch("/image");
+    const imgData = await imgRes.json();
 
-	// Looping generator: keep requesting until label != prediction
-	loopBtn.addEventListener('click', async () => {
-		loopBtn.disabled = true;
-		btn.disabled = true;
-		loopStatus.textContent = 'Status: Running...';
-		let attempts = 0;
-		try {
-			while (true) {
-				attempts += 1;
-				const data = await fetchImage();
-				renderImage(data.image, data.label);
-				if (typeof data.index === 'number') {
-					try {
-						const predVal = await fetchPredict(data.index);
-						predEl.textContent = `Prediction: ${predVal ?? '(no value)'}`;
-						if (String(predVal) !== String(data.label)) {
-							loopStatus.textContent = `Status: Stopped after ${attempts} tries`;
-							break;
-						}
-					} catch (err) {
-						console.error('Prediction error', err);
-						predEl.textContent = 'Prediction: (error)';
-						loopStatus.textContent = `Status: Error after ${attempts} tries`;
-						break;
-					}
-				} else {
-					predEl.textContent = 'Prediction: (no index from server)';
-					loopStatus.textContent = `Status: No index provided (stopped)`;
-					break;
-				}
-				// small pause to allow UI update and avoid hammering server
-				await new Promise(r => setTimeout(r, 150));
-			}
-		} catch (err) {
-			console.error('Looping generator error', err);
-			loopStatus.textContent = 'Status: Error';
-		} finally {
-			loopBtn.disabled = false;
-			btn.disabled = false;
-		}
-	});
+    labelSpan.textContent = imgData.label;
+
+    const imageData = ctx.createImageData(32, 32);
+    for (let row = 0; row < 32; row++) {
+        for (let col = 0; col < 32; col++) {
+            const i = (row * 32 + col) * 4;
+            imageData.data[i]     = Math.round(imgData.image[0][row][col] * 255); // R
+            imageData.data[i + 1] = Math.round(imgData.image[1][row][col] * 255); // G
+            imageData.data[i + 2] = Math.round(imgData.image[2][row][col] * 255); // B
+            imageData.data[i + 3] = 255;
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
+
+    // Predict
+    pulseNetwork();
+    const predRes = await fetch(`/predict?index=${imgData.index}`);
+    const predData = await predRes.json();
+
+    predictionDiv.textContent = predData.prediction;
+
+    const correct = predData.prediction === imgData.label;
+    faceDiv.textContent = correct ? "🙂" : "☹️";
+
+    if (correct) {
+        streak++;
+        streakCount.textContent = streak;
+    }
+
+    return correct;
+}
+
+async function runLoop() {
+    running = true;
+    runBtn.textContent = "Stop";
+    streak = 0;
+    streakCount.textContent = 0;
+
+    while (running) {
+        const correct = await loadAndPredict();
+        if (!correct) {
+            running = false;
+            runBtn.textContent = "Run";
+            return;
+        }
+        // Brief pause so you can see each result before moving on
+        await new Promise(r => setTimeout(r, 500));
+    }
+
+    // Stopped manually
+    runBtn.textContent = "Run";
+}
+
+runBtn.addEventListener("click", () => {
+    if (running) {
+        running = false;
+    } else {
+        runLoop();
+    }
 });
